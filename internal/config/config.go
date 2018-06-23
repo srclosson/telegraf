@@ -838,34 +838,31 @@ func (c *Config) addInput(name string, table *ast.Table) error {
 		name = "diskio"
 	}
 
-	creator, ok := inputs.Inputs[name]
-	if !ok {
-		return fmt.Errorf("Undefined but requested input: %s", name)
-	}
-	input := creator()
+	// Support for dynammic parser plugins
+	fmt.Println("name is ", name)
+	if name == "parsers" {
+		fmt.Printf("Found a parser plugin [%s] from: %s", name, parsers.Parsers)
+		return fmt.Errorf("with a table: %v", table)
+	} else {
+		creator, ok := inputs.Inputs[name]
+		if !ok {
+			return fmt.Errorf("Undefined but requested input: %s", name)
+		}
+		input := creator()
 
-	// If the input has a SetParser function, then this means it can accept
-	// arbitrary types of input, so build the parser and set it.
-	switch t := input.(type) {
-	case parsers.ParserInput:
-		parser, err := buildParser(name, table)
+		pluginConfig, err := buildInput(name, table)
 		if err != nil {
 			return err
 		}
-		t.SetParser(parser)
+
+		if err := toml.UnmarshalTable(table, input); err != nil {
+			return err
+		}
+
+		rp := models.NewRunningInput(input, pluginConfig)
+		c.Inputs = append(c.Inputs, rp)
 	}
 
-	pluginConfig, err := buildInput(name, table)
-	if err != nil {
-		return err
-	}
-
-	if err := toml.UnmarshalTable(table, input); err != nil {
-		return err
-	}
-
-	rp := models.NewRunningInput(input, pluginConfig)
-	c.Inputs = append(c.Inputs, rp)
 	return nil
 }
 
@@ -1211,151 +1208,151 @@ func buildInput(name string, tbl *ast.Table) (*models.InputConfig, error) {
 // buildParser grabs the necessary entries from the ast.Table for creating
 // a parsers.Parser object, and creates it, which can then be added onto
 // an Input object.
-func buildParser(name string, tbl *ast.Table) (parsers.Parser, error) {
-	c := &parsers.Config{}
+// func buildParser(name string, tbl *ast.Table) (parsers.Parser, error) {
+// 	c := &parsers.Config{}
 
-	if node, ok := tbl.Fields["data_format"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.DataFormat = str.Value
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["data_format"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.DataFormat = str.Value
+// 			}
+// 		}
+// 	}
 
-	// Legacy support, exec plugin originally parsed JSON by default.
-	if name == "exec" && c.DataFormat == "" {
-		c.DataFormat = "json"
-	} else if c.DataFormat == "" {
-		c.DataFormat = "influx"
-	}
+// 	// Legacy support, exec plugin originally parsed JSON by default.
+// 	if name == "exec" && c.DataFormat == "" {
+// 		c.DataFormat = "json"
+// 	} else if c.DataFormat == "" {
+// 		c.DataFormat = "influx"
+// 	}
 
-	if node, ok := tbl.Fields["separator"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.Separator = str.Value
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["separator"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.Separator = str.Value
+// 			}
+// 		}
+// 	}
 
-	if node, ok := tbl.Fields["templates"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if ary, ok := kv.Value.(*ast.Array); ok {
-				for _, elem := range ary.Value {
-					if str, ok := elem.(*ast.String); ok {
-						c.Templates = append(c.Templates, str.Value)
-					}
-				}
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["templates"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if ary, ok := kv.Value.(*ast.Array); ok {
+// 				for _, elem := range ary.Value {
+// 					if str, ok := elem.(*ast.String); ok {
+// 						c.Templates = append(c.Templates, str.Value)
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
 
-	if node, ok := tbl.Fields["tag_keys"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if ary, ok := kv.Value.(*ast.Array); ok {
-				for _, elem := range ary.Value {
-					if str, ok := elem.(*ast.String); ok {
-						c.TagKeys = append(c.TagKeys, str.Value)
-					}
-				}
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["tag_keys"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if ary, ok := kv.Value.(*ast.Array); ok {
+// 				for _, elem := range ary.Value {
+// 					if str, ok := elem.(*ast.String); ok {
+// 						c.TagKeys = append(c.TagKeys, str.Value)
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
 
-	if node, ok := tbl.Fields["data_type"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.DataType = str.Value
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["data_type"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.DataType = str.Value
+// 			}
+// 		}
+// 	}
 
-	if node, ok := tbl.Fields["collectd_auth_file"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.CollectdAuthFile = str.Value
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["collectd_auth_file"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.CollectdAuthFile = str.Value
+// 			}
+// 		}
+// 	}
 
-	if node, ok := tbl.Fields["collectd_security_level"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.CollectdSecurityLevel = str.Value
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["collectd_security_level"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.CollectdSecurityLevel = str.Value
+// 			}
+// 		}
+// 	}
 
-	if node, ok := tbl.Fields["collectd_typesdb"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if ary, ok := kv.Value.(*ast.Array); ok {
-				for _, elem := range ary.Value {
-					if str, ok := elem.(*ast.String); ok {
-						c.CollectdTypesDB = append(c.CollectdTypesDB, str.Value)
-					}
-				}
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["collectd_typesdb"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if ary, ok := kv.Value.(*ast.Array); ok {
+// 				for _, elem := range ary.Value {
+// 					if str, ok := elem.(*ast.String); ok {
+// 						c.CollectdTypesDB = append(c.CollectdTypesDB, str.Value)
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
 
-	if node, ok := tbl.Fields["dropwizard_metric_registry_path"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.DropwizardMetricRegistryPath = str.Value
-			}
-		}
-	}
-	if node, ok := tbl.Fields["dropwizard_time_path"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.DropwizardTimePath = str.Value
-			}
-		}
-	}
-	if node, ok := tbl.Fields["dropwizard_time_format"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.DropwizardTimeFormat = str.Value
-			}
-		}
-	}
-	if node, ok := tbl.Fields["dropwizard_tags_path"]; ok {
-		if kv, ok := node.(*ast.KeyValue); ok {
-			if str, ok := kv.Value.(*ast.String); ok {
-				c.DropwizardTagsPath = str.Value
-			}
-		}
-	}
-	c.DropwizardTagPathsMap = make(map[string]string)
-	if node, ok := tbl.Fields["dropwizard_tag_paths"]; ok {
-		if subtbl, ok := node.(*ast.Table); ok {
-			for name, val := range subtbl.Fields {
-				if kv, ok := val.(*ast.KeyValue); ok {
-					if str, ok := kv.Value.(*ast.String); ok {
-						c.DropwizardTagPathsMap[name] = str.Value
-					}
-				}
-			}
-		}
-	}
+// 	if node, ok := tbl.Fields["dropwizard_metric_registry_path"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.DropwizardMetricRegistryPath = str.Value
+// 			}
+// 		}
+// 	}
+// 	if node, ok := tbl.Fields["dropwizard_time_path"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.DropwizardTimePath = str.Value
+// 			}
+// 		}
+// 	}
+// 	if node, ok := tbl.Fields["dropwizard_time_format"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.DropwizardTimeFormat = str.Value
+// 			}
+// 		}
+// 	}
+// 	if node, ok := tbl.Fields["dropwizard_tags_path"]; ok {
+// 		if kv, ok := node.(*ast.KeyValue); ok {
+// 			if str, ok := kv.Value.(*ast.String); ok {
+// 				c.DropwizardTagsPath = str.Value
+// 			}
+// 		}
+// 	}
+// 	c.DropwizardTagPathsMap = make(map[string]string)
+// 	if node, ok := tbl.Fields["dropwizard_tag_paths"]; ok {
+// 		if subtbl, ok := node.(*ast.Table); ok {
+// 			for name, val := range subtbl.Fields {
+// 				if kv, ok := val.(*ast.KeyValue); ok {
+// 					if str, ok := kv.Value.(*ast.String); ok {
+// 						c.DropwizardTagPathsMap[name] = str.Value
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
 
-	c.MetricName = name
+// 	c.MetricName = name
 
-	delete(tbl.Fields, "data_format")
-	delete(tbl.Fields, "separator")
-	delete(tbl.Fields, "templates")
-	delete(tbl.Fields, "tag_keys")
-	delete(tbl.Fields, "data_type")
-	delete(tbl.Fields, "collectd_auth_file")
-	delete(tbl.Fields, "collectd_security_level")
-	delete(tbl.Fields, "collectd_typesdb")
-	delete(tbl.Fields, "dropwizard_metric_registry_path")
-	delete(tbl.Fields, "dropwizard_time_path")
-	delete(tbl.Fields, "dropwizard_time_format")
-	delete(tbl.Fields, "dropwizard_tags_path")
-	delete(tbl.Fields, "dropwizard_tag_paths")
+// 	delete(tbl.Fields, "data_format")
+// 	delete(tbl.Fields, "separator")
+// 	delete(tbl.Fields, "templates")
+// 	delete(tbl.Fields, "tag_keys")
+// 	delete(tbl.Fields, "data_type")
+// 	delete(tbl.Fields, "collectd_auth_file")
+// 	delete(tbl.Fields, "collectd_security_level")
+// 	delete(tbl.Fields, "collectd_typesdb")
+// 	delete(tbl.Fields, "dropwizard_metric_registry_path")
+// 	delete(tbl.Fields, "dropwizard_time_path")
+// 	delete(tbl.Fields, "dropwizard_time_format")
+// 	delete(tbl.Fields, "dropwizard_tags_path")
+// 	delete(tbl.Fields, "dropwizard_tag_paths")
 
-	return parsers.NewParser(c)
-}
+// 	return parsers.NewParser(c)
+// }
 
 // buildSerializer grabs the necessary entries from the ast.Table for creating
 // a serializers.Serializer object, and creates it, which can then be added onto

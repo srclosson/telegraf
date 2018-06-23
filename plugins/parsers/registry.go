@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/influxdata/telegraf"
-
 	"github.com/influxdata/telegraf/plugins/parsers/collectd"
 	"github.com/influxdata/telegraf/plugins/parsers/dropwizard"
 	"github.com/influxdata/telegraf/plugins/parsers/fileinfo"
@@ -14,37 +13,7 @@ import (
 	"github.com/influxdata/telegraf/plugins/parsers/nagios"
 	"github.com/influxdata/telegraf/plugins/parsers/phdcsv"
 	"github.com/influxdata/telegraf/plugins/parsers/value"
-	"github.com/influxdata/telegraf/plugins/parsers/vqtcsv"
 )
-
-// ParserInput is an interface for input plugins that are able to parse
-// arbitrary data formats.
-type ParserInput interface {
-	// SetParser sets the parser function for the interface
-	SetParser(parser Parser)
-}
-
-// Parser is an interface defining functions that a parser plugin must satisfy.
-type Parser interface {
-	// Parse takes a byte buffer separated by newlines
-	// ie, `cpu.usage.idle 90\ncpu.usage.busy 10`
-	// and parses it into telegraf metrics
-	//
-	// Must be thread-safe.
-	Parse(buf []byte) ([]telegraf.Metric, error)
-
-	// ParseLine takes a single string metric
-	// ie, "cpu.usage.idle 90"
-	// and parses it into a telegraf metric.
-	//
-	// Must be thread-safe.
-	ParseLine(line string) (telegraf.Metric, error)
-
-	// SetDefaultTags tells the parser to add all of the given tags
-	// to each parsed metric.
-	// NOTE: do _not_ modify the map after you've passed it here!!
-	SetDefaultTags(tags map[string]string)
-}
 
 // Config is a struct that covers the data types needed for all parser types,
 // and can be used to instantiate _any_ of the parsers.
@@ -104,8 +73,6 @@ func NewParser(config *Config) (Parser, error) {
 			config.TagKeys, config.DefaultTags)
 	case "fileinfo":
 		parser, err = NewFileInfoParser()
-	case "vqtcsv":
-		parser, err = NewVqtCsvParser(config)
 	case "phdcsv":
 		parser, err = NewPhdCsvParser(config)
 	case "value":
@@ -145,13 +112,6 @@ func NewFileInfoParser() (Parser, error) {
 func NewPhdCsvParser(config *Config) (Parser, error) {
 	v, err := phdcsv.NewPhdCsvParser(
 		config.Args["acc"].(telegraf.Accumulator))
-	return v, err
-}
-
-func NewVqtCsvParser(config *Config) (Parser, error) {
-	v, err := vqtcsv.NewVqtCsvParser(
-		config.MetricName,
-	)
 	return v, err
 }
 

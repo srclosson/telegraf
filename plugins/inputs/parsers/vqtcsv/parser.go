@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/metric"
+	"github.com/srclosson/telegraf/plugins/inputs/parsers"
 )
 
 type VqtCsvMetric struct {
@@ -275,4 +276,10 @@ func (p *VqtCsvParser) ParseLine(line string) (telegraf.Metric, error) {
 
 func (p *VqtCsvParser) SetDefaultTags(tags map[string]string) {
 	p.DefaultTags = tags
+}
+
+func init() {
+	parsers.Add("vqtcsv", func() telegraf.Input {
+		return &VqtCsvParser{}
+	})
 }
